@@ -338,12 +338,26 @@ class VerilogParser(object):
 
     def p_ioports(self, p):
         'ioports : ioports COMMA ioport'
+        # p[1] is the tuple of previously parsed ioports
+        # p[3] is the current ioport being processed.
+        # If p[3] is a string, it's an identifier like 'c' in "..., b, c", type needs inference.
+        # If p[3] is an Ioport object, it was fully specified (e.g., "input logic c").
+
+        #POSSIBLE BUGS WITH HOW WIRES AND TRIS are HANDLED
         if isinstance(p[3], str):
             t = None
             for r in reversed(p[1]):
-                if isinstance(r.first, Input):
+                #added none condition for logic
+                if isinstance(r.first, Input) and r.second is None:
                     t = Ioport(Input(name=p[3], width=r.first.width, lineno=p.lineno(3)),
                                lineno=p.lineno(3))
+                    break
+                #Added for Logic
+                if isinstance(r.first, Input) and isinstance(r.second, Logic):
+                    t = Ioport(Input(name=p[3], width=r.first.width, lineno=p.lineno(3)),
+                                 Logic(name=p[3], width=r.first.width,
+                                        lineno=p.lineno(3)),
+                                 lineno=p.lineno(3))
                     break
                 if isinstance(r.first, Output) and r.second is None:
                     t = Ioport(Output(name=p[3], width=r.first.width, lineno=p.lineno(3)),
@@ -355,8 +369,22 @@ class VerilogParser(object):
                                    lineno=p.lineno(3)),
                                lineno=p.lineno(3))
                     break
-                if isinstance(r.first, Inout):
+                #Added for logic
+                if isinstance(r.first, Output) and isinstance(r.second, Logic):
+                    t = Ioport(Output(name=p[3], width=r.first.width, lineno=p.lineno(3)),
+                               Logic(name=p[3], width=r.first.width,
+                                     lineno=p.lineno(3)),
+                               lineno=p.lineno(3))
+                    break
+                #Added condition for logic
+                if isinstance(r.first, Inout) and r.second is None:
                     t = Ioport(Inout(name=p[3], width=r.first.width, lineno=p.lineno(3)),
+                               lineno=p.lineno(3))
+                    break
+                if isinstance(r.first, Inout) and isinstance(r.second, Logic):
+                    t = Ioport(Inout(name=p[3], width=r.first.width, lineno=p.lineno(3)),
+                               Logic(name=p[3], width=r.first.width,
+                                     lineno=p.lineno(3)),
                                lineno=p.lineno(3))
                     break
             p[0] = p[1] + (t,)
@@ -374,6 +402,7 @@ class VerilogParser(object):
         first = None
         second = None
         signed = False
+
         if 'signed' in sigtypes:
             signed = True
         if 'input' in sigtypes:
@@ -391,20 +420,27 @@ class VerilogParser(object):
         if 'reg' in sigtypes:
             second = Reg(name=name, width=width, signed=signed,
                          dimensions=dimensions, lineno=lineno)
+        #ADDED FOR LOGIC
+        if 'logic' in sigtypes:
+            second = Logic(name=name, width=width, signed=signed,
+                           dimensions=dimensions, lineno=lineno)
         if 'tri' in sigtypes:
             second = Tri(name=name, width=width, signed=signed,
                          dimensions=dimensions, lineno=lineno)
         return Ioport(first, second, lineno=lineno)
 
     def typecheck_ioport(self, sigtypes):
+        #Check for valid input output directions
         if 'input' not in sigtypes and 'output' not in sigtypes and 'inout' not in sigtypes:
             raise ParseError("Syntax Error")
+        #Check for only singl direction
         if 'input' in sigtypes and 'output' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'output' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'input' in sigtypes:
             raise ParseError("Syntax Error")
+        # Invalid combinations
         if 'input' in sigtypes and 'reg' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'reg' in sigtypes:
@@ -413,6 +449,7 @@ class VerilogParser(object):
             raise ParseError("Syntax Error")
         if 'output' in sigtypes and 'tri' in sigtypes:
             raise ParseError("Syntax Error")
+        #Logic can support all these types so no additional checks are needed
 
     def p_ioport(self, p):
         'ioport : sigtypes portname'
@@ -536,6 +573,9 @@ class VerilogParser(object):
         if 'reg' in sigtypes:
             decls.append(Reg(name=name, width=width,
                              signed=signed, lineno=lineno, dimensions=dimensions))
+        if 'logic' in sigtypes:
+            decls.append(Logic(name=name, width=width,
+                               signed=signed, lineno=lineno, dimensions=dimensions))
         if 'tri' in sigtypes:
             decls.append(Tri(name=name, width=width,
                              signed=signed, lineno=lineno, dimensions=dimensions))
@@ -551,8 +591,10 @@ class VerilogParser(object):
         if ('supply0' in sigtypes or 'supply1' in sigtypes) and \
            dimensions is not None:
             raise ParseError("SyntaxError")
+        #Signed datatypes need additional dataclass, reg, wire etc.
         if len(sigtypes) == 1 and 'signed' in sigtypes:
             raise ParseError("Syntax Error")
+        #Same as last time, again no need for additional logic checks
         if 'input' in sigtypes and 'output' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'output' in sigtypes:
@@ -628,20 +670,26 @@ class VerilogParser(object):
         if 'reg' in sigtypes:
             decls.append(Reg(name=name, width=width,
                              signed=signed, lineno=lineno))
+        if 'logic' in sigtypes:
+            decls.append(Logic(name=name, width=width,
+                               signed=signed, lineno=lineno))
         decls.append(assign)
         return decls
 
     def typecheck_declassign(self, sigtypes):
         if len(sigtypes) == 1 and 'signed' in sigtypes:
             raise ParseError("Syntax Error")
-        if 'reg' not in sigtypes and 'wire' not in sigtypes:
+        #Edited for LOGIC
+        if 'reg' not in sigtypes and 'wire' not in sigtypes and  'logic' not in sigtypes:
             raise ParseError("Syntax Error")
+        #Cant have two assignments
         if 'input' in sigtypes and 'output' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'output' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'input' in sigtypes:
             raise ParseError("Syntax Error")
+        #Regs cant be inputs or inouts
         if 'input' in sigtypes and 'reg' in sigtypes:
             raise ParseError("Syntax Error")
         if 'inout' in sigtypes and 'reg' in sigtypes:
@@ -1269,6 +1317,11 @@ class VerilogParser(object):
         'const_expression : stringliteral'
         p[0] = StringConst(p[1], lineno=p.lineno(1))
         p.set_lineno(0, p.lineno(1))
+    
+    def p_const_expression_unsizedbitliteral(self, p):
+        'const_expression : UNSIZED_BIT_LITERAL'
+        p[0] = UnsizedBitConst(p[1], lineno=p.lineno(1))
+        p.set_lineno(0, p.lineno(1))
 
     def p_floatnumber(self, p):
         'floatnumber : FLOATNUMBER'
@@ -1557,9 +1610,11 @@ class VerilogParser(object):
         """
         if isinstance(p[1], Decl):
             for r in p[1].list:
+                #ADDED LOGIC TO LIST OF ALLOWED TYPES
                 if (not isinstance(r, Reg) and not isinstance(r, Wire) and
                     not isinstance(r, Integer) and not isinstance(r, Real) and
-                        not isinstance(r, Parameter) and not isinstance(r, Localparam)):
+                        not isinstance(r, Parameter) and not isinstance(r, Localparam) and
+                        not isinstance(r, Logic)):
                     raise ParseError("Syntax Error")
         p[0] = p[1]
         p.set_lineno(0, p.lineno(1))
@@ -2133,8 +2188,9 @@ class VerilogParser(object):
         """
         if isinstance(p[1], Decl):
             for r in p[1].list:
+                #ADDED LOGIC TO LIST OF ALLOWED TYPES
                 if (not isinstance(r, Input) and not isinstance(r, Reg) and
-                        not isinstance(r, Integer)):
+                        not isinstance(r, Integer) and not isinstance(r, Logic)):
                     raise ParseError("Syntax Error")
         p[0] = p[1]
         p.set_lineno(0, p.lineno(1))
@@ -2203,8 +2259,9 @@ class VerilogParser(object):
         """
         if isinstance(p[1], Decl):
             for r in p[1].list:
+                #ADDED LOGIC TO LIST OF ALLOWED TYPES
                 if (not isinstance(r, Input) and not isinstance(r, Reg) and
-                        not isinstance(r, Integer)):
+                        not isinstance(r, Integer) and not isinstance(r, Logic)):
                     raise ParseError("Syntax Error")
         p[0] = p[1]
         p.set_lineno(0, p.lineno(1))

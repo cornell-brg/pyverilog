@@ -13,6 +13,7 @@ Constant
 IntConst
 FloatConst
 StringConst
+UnsizedBitConst
 Variable
 Input
 Output
@@ -20,6 +21,7 @@ Inout
 Tri
 Wire
 Reg
+Logic
 Integer
 Real
 Genvar
@@ -71,6 +73,9 @@ Lor
 Cond
 Assign
 Always
+AlwaysComb
+AlwaysFF
+AlwaysLatch
 SensList
 Sens
 Substitution

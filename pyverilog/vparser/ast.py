@@ -271,6 +271,9 @@ class FloatConst(Constant):
 class StringConst(Constant):
     pass
 
+#ADDED
+class UnsizedBitConst(Constant):
+    pass
 
 class Variable(Value):
     attr_names = ('name', 'signed')
@@ -317,6 +320,8 @@ class Wire(Variable):
 class Reg(Variable):
     pass
 
+class Logic(Variable):
+    pass
 
 class Integer(Variable):
     pass
